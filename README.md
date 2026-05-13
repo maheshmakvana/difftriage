@@ -57,6 +57,25 @@ difftriage score \
   --output text
 ```
 
+### Score directly from `git diff`
+
+`score-git` collects diff stats from your repository and then scores the PR using the same risk model.
+
+```bash
+# Compare main..HEAD (explicit range)
+difftriage score-git --range main..HEAD --output text
+
+# Compare last commit (default base/head: HEAD~1..HEAD)
+difftriage score-git --output json
+
+# Staged-only changes (CI-friendly for pre-commit hooks)
+difftriage score-git --staged --output markdown --exit-mode decision
+```
+
+Notes:
+- Renames/copies are detected by default (`--rename-detection`). Scoring uses the *new path* for risk rules.
+- Binary diffs (`--numstat` shows `-`) are converted into heuristic churn using `--treat-binary-as-lines` (default `250`).
+
 Example result:
 - risk score + level
 - decision + confidence
