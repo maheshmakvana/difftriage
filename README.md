@@ -1,3 +1,5 @@
+![difftriage Banner](assets/images/banner.svg)
+
 # DiffTriage - Pro PR Risk Gating for AI-Generated Code
 
 **difftriage** is an open-source Python library for production-grade pull request risk analysis.
