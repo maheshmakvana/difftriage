@@ -8,6 +8,19 @@ from typing import Literal
 
 DiffMode = Literal["range", "staged", "worktree"]
 
+_REV_REJECT_PREFIXES = ("-",)
+
+def _validate_rev(rev: str, name: str = "revision") -> str:
+    """Reject revision strings that could be interpreted as git flags."""
+    stripped = rev.strip()
+    if not stripped:
+        raise GitDiffError(f"{name} must not be empty")
+    if stripped.startswith(_REV_REJECT_PREFIXES):
+        raise GitDiffError(f"{name} must not start with '-': {stripped!r}")
+    if any(c in stripped for c in "`$|;&\n\r"(){}"):
+        raise GitDiffError(f"{name} contains disallowed characters: {stripped!r}")
+    return stripped
+
 
 class GitDiffError(RuntimeError):
     pass
@@ -35,7 +48,7 @@ class GitDiffStats:
     deleted_files: list[str]
 
 
-def _run_git(args: list[str], *, cwd: str | None = None) -> bytes:
+def _run_git(args: list[str], *, cwd: str | None = None, timeout: float = 300.0) -> bytes:
     try:
         proc = subprocess.run(
             ["git", *args],
@@ -43,7 +56,10 @@ def _run_git(args: list[str], *, cwd: str | None = None) -> bytes:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
+            timeout=timeout,
         )
+    except subprocess.TimeoutExpired as e:
+        raise GitDiffError(f"git command timed out after {timeout}s: {' '.join(args[:3])}") from e
     except FileNotFoundError as e:
         raise GitDiffError("git executable not found on PATH") from e
 
@@ -84,16 +100,14 @@ def _build_diff_args(
     if mode == "staged":
         args.append("--cached")
     elif mode == "worktree":
-        # worktree vs index: plain `git diff`
         pass
     else:
         if range_spec:
-            # Let git parse revspec like "main..HEAD".
-            args.append(range_spec)
+            args.append(_validate_rev(range_spec, "range_spec"))
         else:
             if not base or not head:
                 raise GitDiffError("base/head must be set when mode='range' and range_spec not provided")
-            args.append(f"{base}..{head}")
+            args.append(f"{_validate_rev(base, 'base')}..{_validate_rev(head, 'head')}")
 
     if pathspecs:
         args.append("--")
